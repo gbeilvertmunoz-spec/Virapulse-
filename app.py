@@ -1,0 +1,643 @@
+"""ViralPulse AI - V2 Premium (Streamlit). Lancer : streamlit run app.py"""
+import html, json, re, time, random
+from datetime import datetime, timedelta
+import numpy as np
+import pandas as pd
+import streamlit as st
+import streamlit.components.v1 as components
+
+APP = "ViralPulse AI"
+PAGES = ["🏠 Accueil", "📊 Dashboard", "🎯 Scanner", "🧪 Studio IA", "💰 Packs & Tarifs", "⚖️ Légal & CGU"]
+ROUTES = {"accueil": 0, "dashboard": 1, "scanner": 2, "studio": 3, "tarifs": 4, "legal": 5}
+PLANS = {
+    "Free Trial": {"price": 0, "per": "7 jours", "color": "#9D4EDD", "tag": "Pour tester sans risque",
+                   "feats": ["3 scans inclus", "5 hooks par génération", "Scripts basiques", "Calendrier 7 jours"]},
+    "Creator Pro": {"price": 29, "per": "/mois", "color": "#00F5D4", "tag": "Pour les créateurs qui veulent exploser",
+                    "feats": ["Scans illimités", "30 hooks par génération", "IA de script avancée", "Support 24/7", "Score viral + hashtags"]},
+    "Agency Elite": {"price": 79, "per": "/mois", "color": "#FF007F", "tag": "Pour les agences et équipes",
+                     "feats": ["Tout Creator Pro", "Multi-comptes", "Calendrier 30 jours + export CSV", "Insights exclusifs"]},
+}
+PACKS = {
+    "hooks": ("🪝 Pack Hooks", 19, "96 hooks prêts à poster, par niche et par ton.", "#00F5D4"),
+    "scans": ("🔎 Pack Scans ×25", 15, "25 scans supplémentaires, sans abonnement.", "#9D4EDD"),
+    "calendrier": ("🗓️ Pack Calendrier", 24, "Plan de publication 30 jours + export CSV.", "#FF007F"),
+    "ultimate": ("👑 Pack Ultimate", 49, "Les 3 packs réunis : −30 % et accès prioritaire.", "#FFD166"),
+}
+NICHES = {
+    "Tech": ("l'IA", ["#techtok", "#ia", "#gadgets", "#setup", "#apps", "#productivité"]),
+    "Fitness": ("la muscu", ["#fitness", "#gym", "#coach", "#abs", "#transformation", "#protein"]),
+    "Cuisine": ("la cuisine", ["#recette", "#foodtok", "#facile", "#healthy", "#budget", "#chef"]),
+    "Business": ("le business", ["#business", "#entrepreneur", "#sidehustle", "#saas", "#argent", "#freelance"]),
+    "Gaming": ("le gaming", ["#gaming", "#twitch", "#fps", "#setupgaming", "#speedrun", "#gamer"]),
+    "Beauté": ("la skincare", ["#skincare", "#beauty", "#makeup", "#routine", "#glowup", "#grwm"]),
+    "Voyage": ("les voyages", ["#voyage", "#travel", "#bonsplans", "#roadtrip", "#vanlife", "#budgettravel"]),
+    "Finance": ("l'investissement", ["#finance", "#bourse", "#etf", "#epargne", "#crypto", "#liberté"]),
+}
+PATTERNS = ["Personne ne te dit ça sur {n}", "3 erreurs que tu fais avec {n}", "J'ai testé {n} pendant 30 jours",
+            "Le secret que les pros cachent sur {n}", "Arrête tout : voici la vérité sur {n}",
+            "Ce que {n} m'a appris en 1 an", "Pourquoi 90 % des gens échouent avec {n}", "Avant / après {n} : le résultat est fou"]
+AUDIOS = ["Espresso – remix lofi", "Sneaky Snitch", "Oh No – Kreepa", "Gym Phonk – Montagem", "Industry Baby (sped up)",
+          "Good Days – SZA", "Original sound – trend", "Runaway (lofi)"]
+TONES = {"Choc": ["🚨 Stop !", "⚠️ Attention :", "🤯 Incroyable :", "❌ Erreur n°1 :"],
+         "Curieux": ["🤔 Et si", "👀 Regarde :", "🧐 Tu savais que", "💡 Idée :"],
+         "Expert": ["🎓 Méthode :", "📊 Données :", "🧠 Leçon :", "✅ Conseil pro :"],
+         "Humour": ["😂 Bref,", "🙃 Spoiler :", "😅 POV :", "🤡 Confession :"]}
+SUFFIX = ["", " (regarde jusqu'à la fin)", " 👇"]
+POWER = ["secret", "erreur", "stop", "jamais", "arrête", "vérité", "gratuit", "incroyable", "personne", "interdit"]
+
+st.set_page_config(page_title=f"{APP} | Trends & scripts viraux TikTok, Reels, Shorts",
+                   page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
+
+CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+:root{--bg:#0B0F17;--violet:#9D4EDD;--cyan:#00F5D4;--rose:#FF007F;--txt:#EAF0FF;--mut:#A9B4CC}
+html,body,[class*="css"],.stApp{font-family:'Inter',sans-serif!important;color:var(--txt)}
+.stApp{background:radial-gradient(900px 500px at 10% -5%,rgba(157,78,221,.35),transparent),
+ radial-gradient(800px 500px at 100% 10%,rgba(0,245,212,.16),transparent),
+ radial-gradient(700px 500px at 50% 110%,rgba(255,0,127,.16),transparent),#0B0F17!important}
+header[data-testid="stHeader"]{background:transparent}
+#MainMenu,footer{visibility:hidden}
+section[data-testid="stSidebar"]{background:rgba(13,18,30,.88)!important;backdrop-filter:blur(14px);border-right:1px solid rgba(157,78,221,.45)}
+.logo{font-size:1.5rem;font-weight:800;color:var(--violet);text-shadow:0 0 12px var(--violet),0 0 28px rgba(157,78,221,.6)}
+.glass{background:rgba(255,255,255,.045);backdrop-filter:blur(12px);border-radius:16px;padding:1.2rem;position:relative;
+ box-shadow:0 0 24px rgba(157,78,221,.25);margin-bottom:1rem;transition:transform .2s}
+.glass:hover{transform:translateY(-3px)}
+.glass::before{content:"";position:absolute;inset:0;border-radius:16px;padding:1px;
+ background:linear-gradient(135deg,var(--violet),var(--cyan),var(--rose));
+ -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.kpi-l{color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+.kpi-v{font-size:2.1rem;font-weight:800;color:var(--cyan);text-shadow:0 0 14px rgba(0,245,212,.6)}
+.kpi-d{color:var(--mut);font-size:.85rem}
+h1,h2,h3{color:var(--txt)!important;font-weight:800!important}
+.hero{text-align:center;padding:2rem 0 1rem}
+.hero h1{font-size:3rem;line-height:1.1;margin:.6rem 0}
+.grad{background:linear-gradient(90deg,var(--violet),var(--cyan),var(--rose));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{max-width:720px;margin:0 auto;color:var(--mut);font-size:1.1rem;line-height:1.7}
+.badge{display:inline-block;border-radius:999px;padding:.15rem .8rem;font-size:.75rem;font-weight:700;border:1px solid var(--cyan);color:var(--cyan);margin-right:.3rem}
+.badge.r{border-color:var(--rose);color:var(--rose)}
+.ticker{overflow:hidden;white-space:nowrap;border-radius:16px;border:1px solid rgba(157,78,221,.5);background:rgba(255,255,255,.04);padding:.6rem 0;margin:1rem 0}
+.tk{display:inline-block;animation:tk 28s linear infinite;color:var(--cyan);font-weight:600}
+@keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ribbon{position:absolute;top:-12px;right:16px;background:linear-gradient(90deg,var(--cyan),#00c4a7);color:#04110f;font-weight:800;font-size:.75rem;padding:.25rem .8rem;border-radius:999px}
+.price{font-size:2.6rem;font-weight:800}
+ul.f{list-style:none;padding:0;color:var(--txt);line-height:1.9} ul.f li:before{content:"✔ ";color:var(--cyan)}
+.stButton>button,.stDownloadButton>button{border-radius:16px;border:1px solid var(--violet);background:rgba(157,78,221,.12);color:var(--txt);font-weight:600;transition:.2s;width:100%}
+.stButton>button:hover,.stDownloadButton>button:hover{border-color:var(--cyan);box-shadow:0 0 18px rgba(0,245,212,.5);color:var(--cyan)}
+.stButton>button[kind="primary"]{background:linear-gradient(135deg,var(--cyan),#00c4a7);color:#04110f;border:0;animation:pulse 2.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 14px rgba(0,245,212,.45)}50%{box-shadow:0 0 30px rgba(0,245,212,.85)}}
+.stProgress>div>div>div>div{background:linear-gradient(90deg,var(--violet),var(--cyan),var(--rose));box-shadow:0 0 14px var(--cyan)}
+.stTextInput input,.stTextArea textarea,div[data-baseweb="select"]>div{border-radius:16px!important;background:rgba(255,255,255,.05)!important;border:1px solid rgba(157,78,221,.5)!important;color:var(--txt)!important}
+.stMarkdown p,.stMarkdown li{line-height:1.75;font-size:1rem;color:var(--txt)}
+.stMarkdown table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid rgba(157,78,221,.5);border-radius:16px;overflow:hidden;margin:1rem 0}
+.stMarkdown th{background:rgba(157,78,221,.25);color:var(--cyan);padding:.7rem;text-align:left}
+.stMarkdown td{padding:.7rem;border-top:1px solid rgba(255,255,255,.08)}
+.stMarkdown a{color:var(--cyan)} .stMarkdown h3{color:var(--cyan)!important;font-size:1.15rem;margin-top:1.3rem}
+.stTabs [data-baseweb="tab"]{border-radius:16px 16px 0 0;padding:.6rem 1rem}
+.stTabs [aria-selected="true"]{color:var(--cyan)!important;border-bottom:2px solid var(--cyan)}
+.e404{text-align:center;font-size:6rem;font-weight:800;color:var(--rose);text-shadow:0 0 30px var(--rose)}
+@media(max-width:768px){.hero h1{font-size:2rem}.kpi-v{font-size:1.6rem}.price{font-size:2rem}}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
+# ---------- État ----------
+def init_state():
+    defaults = {"nav": PAGES[0], "plan": "Free Trial", "trial_start": datetime.now(), "scans_used": 0, "credits": 0,
+                "packs": [], "history": [], "results": None, "niche": None, "cookies": None, "cookies_ts": None,
+                "events": [], "contact_ts": 0.0}
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+
+def track(event, **meta):
+    try:
+        if st.session_state.get("cookies") == "all":
+            st.session_state.events.append({"t": datetime.now().isoformat(timespec="seconds"), "e": event, **meta})
+    except Exception:
+        pass
+
+def has(pack):
+    return pack in st.session_state.packs or "ultimate" in st.session_state.packs
+
+def trial_left():
+    return max(0, 7 - (datetime.now() - st.session_state.trial_start).days)
+
+def scans_left():
+    if st.session_state.plan != "Free Trial":
+        return None
+    if trial_left() == 0 and st.session_state.credits == 0:
+        return 0
+    return max(0, 3 + st.session_state.credits - st.session_state.scans_used)
+
+def go(i):
+    st.session_state.nav = PAGES[i]
+
+def buy(key):
+    if key not in st.session_state.packs:
+        st.session_state.packs.append(key)
+        if key in ("scans", "ultimate"):
+            st.session_state.credits += 25
+    track("pack", pack=key)
+    st.toast(f"{PACKS[key][0]} activé (simulation, aucun paiement réel).", icon="✅")
+
+def choose_plan(name):
+    st.session_state.plan = name
+    track("plan", plan=name)
+    st.toast(f"Plan {name} activé (simulation).", icon="⚡")
+
+# ---------- Moteur (séparé de l'UI, remplaçable par une vraie API) ----------
+class TrendAPI:
+    @staticmethod
+    def scan(niche):
+        if niche not in NICHES:
+            raise ValueError(f"Niche inconnue : {niche}")
+        noun, kw = NICHES[niche]
+        r = random.Random(f"{niche}{datetime.now().date()}")
+        pats = r.sample(PATTERNS, 5)
+        scores = sorted([r.randint(78, 98) for _ in pats], reverse=True)
+        return pd.DataFrame([{"Tendance / Hook": p.format(n=noun), "Mots-clés": " ".join(r.sample(kw, 3)),
+                              "Audio du moment": r.choice(AUDIOS), "Score viral": s, "Vues 24h": f"{r.randint(120, 2400)}K",
+                              "Difficulté": r.choice(["Facile", "Moyen", "Pro"])} for p, s in zip(pats, scores)])
+
+    @staticmethod
+    def hooks(niche, tone):
+        noun = NICHES[niche][0]
+        out = [f"{pre} {p.format(n=noun)}{suf}" for p in PATTERNS for pre in TONES[tone] for suf in SUFFIX]
+        random.Random(f"{niche}{tone}").shuffle(out)
+        return out
+
+    @staticmethod
+    def script(niche, hook, audio):
+        return (f"🎬 SCRIPT VIDÉO – {niche}\n{'=' * 40}\nHOOK (0-2s) : \"{hook}\"\nVISUEL : gros plan, texte gras, coupe rapide.\n\n"
+                "DÉVELOPPEMENT (2-15s) :\n- Problème : ce que le spectateur fait mal.\n- Preuve : résultat concret en 3 plans courts.\n"
+                "- Twist : l'astuce inattendue.\n\nCTA (15-20s) : « Abonne-toi pour la partie 2 ! »\n"
+                f"AUDIO : {audio}\nFORMAT : 9:16 · 20 s\n")
+
+    @staticmethod
+    def score(text):
+        t = text.lower()
+        checks = [(len(text.split()) <= 12, 20, "Court (12 mots max)", "Raccourcis à 12 mots max"),
+                  (bool(re.search(r"\d", t)), 15, "Contient un chiffre", "Ajoute un chiffre (3 erreurs, 30 jours…)"),
+                  (bool(re.search(r"\b(tu|ton|ta|tes|vous|votre)\b", t)), 15, "Parle au spectateur", "Adresse-toi à lui (tu / ton)"),
+                  (any(w in t for w in POWER), 20, "Mot fort présent", "Ajoute un mot fort (secret, erreur, stop…)"),
+                  ("?" in t or "!" in t, 10, "Émotion / question", "Ajoute un ? ou un !")]
+        return min(100, 20 + sum(c[1] for c in checks if c[0])), [(c[0], c[2] if c[0] else c[3]) for c in checks]
+
+# ---------- Composants ----------
+def kpi(label, value, delta=""):
+    st.markdown(f'<div class="glass"><div class="kpi-l">{html.escape(label)}</div><div class="kpi-v">{html.escape(str(value))}</div>'
+                f'<div class="kpi-d">{html.escape(delta)}</div></div>', unsafe_allow_html=True)
+
+def card(body, glow="#9D4EDD"):
+    st.markdown(f'<div class="glass" style="box-shadow:0 0 28px {glow}44">{body}</div>', unsafe_allow_html=True)
+
+def fmt_eur(x):
+    return (f"{x:.2f}" if x % 1 else f"{x:.0f}").replace(".", ",") + "€"
+
+def copy_button(text, key):
+    payload = json.dumps(text).replace("</", "<\\/")
+    components.html(f"""<button id="b{key}" style="width:100%;padding:10px;border-radius:16px;border:1px solid #00F5D4;background:rgba(0,245,212,.1);
+    color:#00F5D4;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">📋 Copier dans le presse-papier</button><script>
+    document.getElementById('b{key}').onclick=async()=>{{try{{await navigator.clipboard.writeText({payload});
+    document.getElementById('b{key}').innerText='✅ Copié !';}}catch(e){{document.getElementById('b{key}').innerText='❌ Copie refusée';}}}};</script>""", height=56)
+
+
+# ---------- Légal, cookies, droits RGPD ----------
+LEGAL_DATE = "30 septembre 2026"
+LEGAL = {
+"Mentions légales": """
+### Éditeur du site
+**ViralPulse AI** – [Raison sociale], [forme juridique] au capital de [X] €
+RCS [ville] n° [numéro] · SIRET [numéro] · TVA intracommunautaire [numéro]
+Siège social : [adresse complète] · Email : [contact@votre-domaine.com] · Tél. : [numéro]
+**Directeur de la publication :** [Nom Prénom]
+
+### Hébergement
+[Nom de l'hébergeur], [adresse], [pays] · [site web] · [téléphone]
+
+### Propriété intellectuelle
+La marque, le logo, l'interface, les textes, les bases de données et le code de ViralPulse AI sont protégés par le Code de la propriété intellectuelle. Toute reproduction ou extraction, même partielle, sans autorisation écrite est interdite.
+
+### Responsabilité et liens externes
+L'Éditeur s'efforce de fournir des informations exactes mais ne garantit ni leur exhaustivité ni leurs performances sur les plateformes tierces (TikTok, Instagram, YouTube). Les liens externes sont fournis à titre informatif.
+
+### Médiation et litiges
+Droit français applicable. Avant toute action, une solution amiable est recherchée. Médiateur : [nom et coordonnées du médiateur compétent].
+
+### Accessibilité
+Le site vise un niveau de contraste AA. Signalez tout défaut à [contact@votre-domaine.com].
+
+> ⚠️ Remplace tous les champs entre crochets avant la mise en ligne. Ces textes sont un modèle : fais-les valider par un juriste.
+""",
+"Confidentialité (RGPD)": """
+### 1. Responsable de traitement
+L'Éditeur (voir Mentions légales). Contact protection des données : **[dpo@votre-domaine.com]**.
+
+### 2. Données collectées, finalités et bases légales
+| Données | Finalité | Base légale | Durée |
+|---|---|---|---|
+| Email, nom, mot de passe (haché) | Création et gestion du compte | Contrat | Durée du compte + 3 ans |
+| Plan, factures, moyen de paiement (via prestataire) | Facturation, obligations comptables | Contrat / obligation légale | 10 ans |
+| Niches scannées, scripts générés | Fournir le service, historique | Contrat | Durée du compte |
+| Mesure d'audience (pages vues, événements) | Améliorer le produit | **Consentement** | 13 mois max |
+| Messages de support | Répondre aux demandes | Intérêt légitime | 3 ans |
+| Journaux techniques, IP | Sécurité, lutte anti-fraude et anti-spam | Intérêt légitime | 12 mois |
+
+### 3. Destinataires et sous-traitants
+Hébergeur, prestataire de paiement, outil d'emailing, outil d'analytics. Vos données ne sont jamais vendues. Tout transfert hors Union européenne est encadré par des clauses contractuelles types ou une décision d'adéquation.
+
+### 4. Vos droits
+Accès, rectification, effacement, limitation, opposition, portabilité, retrait du consentement à tout moment, directives post-mortem. Exercez-les depuis l'onglet **Mes droits & données** ou par email : réponse sous **1 mois**. Réclamation possible auprès de la **CNIL** (cnil.fr).
+
+### 5. Sécurité
+Chiffrement en transit (HTTPS/TLS), mots de passe hachés, accès restreints, sauvegardes, journalisation. En cas de violation, notification à la CNIL sous 72 h et aux personnes concernées si nécessaire.
+
+### 6. Mineurs et décisions automatisées
+Service réservé aux personnes majeures. Aucune décision produisant des effets juridiques n'est prise uniquement par traitement automatisé ; les scripts IA sont des suggestions.
+
+*Dernière mise à jour : {date}*
+""",
+"Politique de cookies": """
+### Qu'est-ce qu'un cookie ?
+Un petit fichier ou traceur stocké sur votre appareil pour faire fonctionner le service ou mesurer son usage.
+
+### Nos catégories
+| Catégorie | Exemples | Consentement | Durée |
+|---|---|---|---|
+| **Essentiels** | Session, préférences de navigation, choix cookies | Non requis | Session / 6 mois |
+| **Mesure d'audience** | Pages vues, événements (scans, scripts) | **Oui** | 13 mois max |
+| **Publicité / réseaux sociaux** | Aucun utilisé | — | — |
+
+### Gérer vos choix
+Vous pouvez accepter, refuser ou personnaliser dans la bannière, puis modifier votre choix à tout moment via le bouton « Modifier mon choix cookies » ci-dessous. Refuser est aussi simple qu'accepter. Votre choix est conservé 6 mois. Vous pouvez aussi configurer votre navigateur pour bloquer les cookies.
+""",
+"CGU": """
+**1. Objet.** Les présentes CGU régissent l'utilisation de ViralPulse AI, outil d'analyse de tendances et de génération de scripts vidéo.
+**2. Accès au service.** Réservé aux professionnels majeurs. L'utilisateur garantit l'exactitude de ses informations et protège ses identifiants.
+**3. Usages interdits.** Scraping abusif, revente ou sous-licence non autorisée, contournement des quotas, contenus illicites, atteinte à la sécurité ou aux droits de tiers.
+**4. Contenus générés.** Les scripts sont des suggestions. L'utilisateur reste seul responsable de leur publication et du respect des règles des plateformes et des droits d'auteur. Aucun résultat de performance n'est garanti.
+**5. Disponibilité.** Accès 24/7 sans garantie d'absence d'interruption (maintenance, force majeure).
+**6. Responsabilité.** Service fourni « en l'état ». La responsabilité de l'Éditeur est limitée aux dommages directs, plafonnée aux sommes versées sur les 12 derniers mois.
+**7. Suspension.** Tout manquement peut entraîner suspension ou résiliation après mise en demeure.
+**8. Évolution.** Les CGU peuvent évoluer ; les utilisateurs sont informés par email 30 jours avant l'entrée en vigueur.
+**9. Droit applicable.** Droit français ; tribunaux du siège de l'Éditeur, sous réserve des règles impératives.
+
+*Version du {date}*
+""",
+"Abonnement & remboursement (CGV)": """
+### Offres et prix
+| Plan | Prix | Contenu |
+|---|---|---|
+| Free Trial | 0 € | 7 jours, 3 scans, accès limité, sans carte bancaire |
+| Creator Pro | 29 € /mois | Scans illimités, IA avancée, support 24/7 |
+| Agency Elite | 79 € /mois | Multi-comptes, exports CSV de masse, insights exclusifs |
+
+Prix affichés [HT/TTC – à préciser]. TVA applicable selon la réglementation.
+
+### Packs ponctuels
+Les packs (Hooks, Scans ×25, Calendrier, Ultimate) sont des achats uniques, sans abonnement ni reconduction. Remboursement sur demande sous 14 jours si le pack n'a pas été utilisé.
+
+### Paiement et renouvellement
+Paiement mensuel à l'avance via un prestataire sécurisé. Reconduction tacite chaque mois ; rappel par email avant chaque renouvellement si requis.
+
+### Résiliation
+À tout moment depuis le compte, sans frais ; l'accès reste actif jusqu'à la fin de la période payée.
+
+### Droit de rétractation et remboursement
+Service destiné aux professionnels : le droit légal de rétractation des consommateurs ne s'applique pas de plein droit. Par geste commercial, **tout premier paiement est remboursable sur demande sous 14 jours** si aucun export massif n'a été utilisé. Aucun remboursement au prorata des périodes entamées ensuite. Remboursement sous 14 jours sur le moyen de paiement d'origine.
+
+### Médiation
+En cas de litige non résolu, recours au médiateur : [nom et coordonnées].
+
+*Version du {date}*
+""",
+}
+LEGAL = {k: v.replace("{date}", LEGAL_DATE) for k, v in LEGAL.items()}
+
+def sitemap_robots():
+    base = "https://viralpulse.example.com"
+    sm = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "".join(
+        f"  <url><loc>{base}/?page={p}</loc></url>\n" for p in ["dashboard", "scanner", "tarifs", "legal"]) + "</urlset>"
+    return sm, f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n"
+
+def contact_form():
+    with st.form("contact"):
+        email = st.text_input("Votre email")
+        msg = st.text_area("Message (10 à 1000 caractères)")
+        trap = st.text_input("Laisser vide", key="hp", label_visibility="collapsed")  # honeypot anti-spam
+        if st.form_submit_button("Envoyer"):
+            try:
+                if trap:
+                    return  # bot détecté : on ignore silencieusement
+                if time.time() - st.session_state.contact_ts < 30:
+                    st.warning("Merci de patienter 30 s entre deux envois."); return
+                if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", email.strip()):
+                    st.error("Email invalide."); return
+                if not 10 <= len(msg.strip()) <= 1000:
+                    st.error("Le message doit faire entre 10 et 1000 caractères."); return
+                st.session_state.contact_ts = time.time()
+                track("contact")
+                st.success("Message envoyé (simulation). Nous répondons sous 48 h.")
+            except Exception as e:
+                st.error(f"Erreur : {e}")
+
+def cookie_banner():
+    if st.session_state.cookies is not None:
+        return
+    st.markdown('<div class="glass"><b>🍪 Vos choix de confidentialité</b><br><span class="kpi-d">'
+                'Nous utilisons des cookies essentiels et, avec votre accord, des cookies de mesure d\'audience. '
+                'Aucune publicité. Vous pouvez changer d\'avis à tout moment. '
+                '<a href="?page=legal" target="_self">Politique cookies</a></span></div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    if c1.button("Tout accepter", key="ck_all", type="primary"):
+        st.session_state.cookies = "all"; st.session_state.cookies_ts = datetime.now().isoformat(); st.rerun()
+    if c2.button("Tout refuser", key="ck_no"):
+        st.session_state.cookies = "none"; st.session_state.cookies_ts = datetime.now().isoformat(); st.rerun()
+    with st.expander("Personnaliser"):
+        st.checkbox("Essentiels (obligatoires)", value=True, disabled=True)
+        an = st.checkbox("Mesure d'audience (analytics)", value=False, key="ck_an")
+        if st.button("Enregistrer mes choix", key="ck_save"):
+            st.session_state.cookies = "all" if an else "essential"
+            st.session_state.cookies_ts = datetime.now().isoformat(); st.rerun()
+
+def footer():
+    st.markdown(f'<div class="glass" style="text-align:center"><span class="kpi-d">© {datetime.now().year} ViralPulse AI · '
+                '<a href="?page=legal" target="_self">Mentions légales</a> · <a href="?page=legal" target="_self">Confidentialité</a> · '
+                '<a href="?page=legal" target="_self">Cookies</a> · <a href="?page=legal" target="_self">CGU / CGV</a></span></div>',
+                unsafe_allow_html=True)
+
+def rights_tab():
+    st.markdown("### Exercer vos droits RGPD")
+    st.markdown("Téléchargez vos données (portabilité/accès) ou supprimez-les (effacement) directement ici.")
+    export = {"plan": st.session_state.plan, "scans_utilises": st.session_state.scans_used,
+              "essai_debut": st.session_state.trial_start.isoformat(), "scripts": st.session_state.history,
+              "cookies": st.session_state.cookies, "consentement_date": st.session_state.get("cookies_ts")}
+    st.download_button("⬇️ Exporter mes données (JSON)", json.dumps(export, ensure_ascii=False, indent=2, default=str),
+                       "mes_donnees_viralpulse.json", mime="application/json")
+    st.markdown("**Consentement cookies :** " + {"all": "Tout accepté", "essential": "Essentiels seulement",
+                "none": "Tout refusé", None: "Non défini"}[st.session_state.cookies])
+    if st.button("🍪 Modifier mon choix cookies"):
+        st.session_state.cookies = None; st.rerun()
+    st.warning("La suppression efface l'historique, le plan et les préférences de cette session.")
+    if st.checkbox("Je confirme vouloir supprimer toutes mes données"):
+        if st.button("🗑️ Supprimer mes données"):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
+
+def page_legal():
+    st.title("⚖️ Légal, Confidentialité & CGU")
+    st.caption(f"Documents à jour au {LEGAL_DATE}. Conformes RGPD, loi Informatique et Libertés et ePrivacy (à faire valider).")
+    names = list(LEGAL.keys()) + ["Mes droits & données", "Contact", "Technique & SEO"]
+    tabs = st.tabs(names)
+    for t, (_, body) in zip(tabs, LEGAL.items()):
+        with t:
+            st.markdown(body)
+    n = len(LEGAL)
+    with tabs[n]: rights_tab()
+    with tabs[n + 1]: contact_form()
+    with tabs[n + 2]:
+        sm, rb = sitemap_robots()
+        st.download_button("⬇️ sitemap.xml", sm, "sitemap.xml")
+        st.download_button("⬇️ robots.txt", rb, "robots.txt")
+        st.caption(f"Événements analytics enregistrés (session, avec consentement) : {len(st.session_state.events)}")
+
+
+# ---------- Pages ----------
+def page_home():
+    st.markdown('<div class="hero"><span class="badge">✨ Nouveau</span><span class="badge r">IA de scripts v2</span>'
+                '<h1>Crée des vidéos <span class="grad">virales</span> en 10 minutes, pas en 10 heures.</h1>'
+                '<p>ViralPulse AI scanne les tendances TikTok, Reels et Shorts, décortique les hooks qui marchent '
+                'et écrit tes scripts pendant que tu dors. Moins de stress, plus de vues.</p></div>', unsafe_allow_html=True)
+    _, mid, _ = st.columns([1, 1.2, 1])
+    with mid:
+        st.button("🚀 Essayer gratuitement 7 jours", type="primary", on_click=go, args=(2,), key="cta_home")
+        st.caption("Sans carte bancaire · 3 scans offerts · annulable à tout moment")
+    t = "🔥 #techtok +340% · 🎵 Espresso (remix) · 🚀 #sidehustle +210% · 💪 #walking +180% · 🍳 #recette3ingredients · 🤖 #ia +410% · "
+    st.markdown(f'<div class="ticker"><div class="tk">{t * 4}</div></div>', unsafe_allow_html=True)
+    st.caption("Chiffres et tendances affichés à titre de démonstration.")
+    c = st.columns(4)
+    for col, (l, v, d) in zip(c, [("Créateurs visés", "10K+", "objectif V1"), ("Temps gagné", "−80 %", "sur la recherche d'idées"),
+                                  ("Hooks générés", "96+", "par niche et par ton"), ("Plateformes", "3", "TikTok · Reels · Shorts")]):
+        with col: kpi(l, v, d)
+    st.header("Pourquoi choisir ViralPulse AI ?")
+    w = st.columns(3)
+    for col, (ico, tt, tx, g) in zip(w, [
+        ("⏱️", "Gagne 10 h par semaine", "Fini les heures à chercher quoi poster : le scanner te livre les tendances du jour, prêtes à tourner.", "#00F5D4"),
+        ("🎯", "Des hooks qui retiennent", "Chaque idée vient avec son hook, ses mots-clés et l'audio du moment pour maximiser la rétention.", "#9D4EDD"),
+        ("📈", "Progresse avec des données", "Dashboard, meilleurs horaires et score viral : tu sais quoi corriger avant de publier.", "#FF007F")]):
+        with col: card(f"<h3>{ico} {tt}</h3><p class='kpi-d'>{tx}</p>", g)
+    st.header("Calcule ce que tu gagnes")
+    a, b, c3 = st.columns(3)
+    vids = a.slider("Vidéos par semaine", 1, 21, 5)
+    mins = b.slider("Minutes économisées par vidéo", 10, 120, 45, step=5)
+    rate = c3.slider("Ta valeur horaire (€)", 10, 150, 40, step=5)
+    hours = vids * 4.3 * mins / 60
+    value = hours * rate
+    k = st.columns(3)
+    with k[0]: kpi("Temps gagné / mois", f"{hours:.0f} h", "estimation")
+    with k[1]: kpi("Valeur estimée / mois", f"{value:,.0f} €".replace(",", " "), "temps × valeur horaire")
+    with k[2]: kpi("Retour vs Creator Pro", f"×{value / 29:.1f}", "pour 29 €/mois")
+    st.header("Ils en parlent")
+    tcols = st.columns(3)
+    for col, (n, r, tx) in zip(tcols, [("Lina · Fitness", "Créatrice", "J'ai arrêté de chercher des idées, je tourne directement."),
+                                       ("Karim · Tech", "Freelance", "Les hooks sont redoutables, mes vidéos tiennent enfin jusqu'au bout."),
+                                       ("Studio Nova", "Agence", "Le multi-comptes et l'export CSV nous font gagner une journée par semaine.")]):
+        with col: card(f"<p>« {tx} »</p><span class='badge'>{n}</span><span class='kpi-d'>{r}</span>", "#00F5D4")
+    st.caption("⚠️ Témoignages illustratifs de démonstration : remplace-les par de vrais avis clients avant la mise en ligne.")
+    st.header("Questions fréquentes")
+    for q, a_ in [("Puis-je annuler à tout moment ?", "Oui, en un clic. L'accès reste actif jusqu'à la fin de la période payée."),
+                  ("Les résultats sont-ils garantis ?", "Non : aucun outil ne garantit la viralité. Nous maximisons tes chances avec des données et de bons hooks."),
+                  ("Y a-t-il une garantie de remboursement ?", "Oui, premier paiement remboursable sur demande sous 14 jours (voir CGV)."),
+                  ("Mes données sont-elles protégées ?", "Oui : RGPD, hébergement sécurisé, export et suppression depuis l'onglet Légal.")]:
+        with st.expander(q): st.write(a_)
+
+def page_dashboard():
+    st.title("📊 Dashboard de Tracking")
+    st.caption("Données simulées à des fins de démonstration.")
+    c = st.columns(4)
+    with c[0]: kpi("Tendances scannées", 1248 + st.session_state.scans_used * 5, "▲ +12 % / semaine")
+    with c[1]: kpi("Score de virilité moyen", "87,4 / 100", "▲ +3,1 pts")
+    with c[2]: kpi("Rétention estimée", "14,2 s", "▲ 71 % de complétion")
+    with c[3]: kpi("Scripts générés", len(st.session_state.history), "cette session")
+    rng = np.random.default_rng(42)
+    days = pd.date_range(end=datetime.now().date(), periods=30)
+    views = pd.DataFrame({"Vues": np.cumsum(rng.integers(8_000, 40_000, 30))}, index=days)
+    bars = pd.DataFrame({"TikTok": rng.integers(40, 100, 7), "Reels": rng.integers(30, 90, 7), "Shorts": rng.integers(20, 80, 7)},
+                        index=["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"])
+    hours = pd.DataFrame({"Engagement": [20 + 60 * np.exp(-((h - 19.5) ** 2) / 6) + 35 * np.exp(-((h - 12.5) ** 2) / 4) + rng.integers(0, 8)
+                                         for h in range(6, 24)]}, index=[f"{h}h" for h in range(6, 24)])
+    a, b = st.columns(2)
+    with a:
+        st.subheader("Croissance des vues (30 j)"); st.area_chart(views, color="#00F5D4")
+    with b:
+        st.subheader("Performance par plateforme"); st.bar_chart(bars, color=["#9D4EDD", "#00F5D4", "#FF007F"])
+    st.subheader("⏰ Meilleurs horaires de publication")
+    st.bar_chart(hours, color="#FF007F")
+    st.subheader("Historique des scripts")
+    if st.session_state.history:
+        st.dataframe(pd.DataFrame(st.session_state.history), width="stretch", hide_index=True)
+    else:
+        st.info("Aucun script généré. Lance un scan !")
+
+def page_scanner():
+    st.title("🎯 Scanner de Niche & IA")
+    left = scans_left()
+    st.markdown(f'<span class="badge">Plan {st.session_state.plan}</span><span class="badge r">'
+                f'{"Scans illimités" if left is None else f"{left} scan(s) restant(s)"}</span>', unsafe_allow_html=True)
+    niche = st.selectbox("Choisis ta niche", list(NICHES.keys()))
+    if st.button("🚀 Lancer l'Analyse", type="primary", key="cta_scan"):
+        if left == 0:
+            st.error("Scans épuisés : prends un plan ou un Pack Scans dans l'onglet Packs & Tarifs.")
+        else:
+            try:
+                bar = st.progress(0, text="Analyse des tendances…")
+                for i in range(30):
+                    time.sleep(0.1)
+                    bar.progress((i + 1) / 30, text=f"Analyse des tendances… {int((i + 1) / 30 * 100)} %")
+                st.session_state.results = TrendAPI.scan(niche)
+                st.session_state.niche = niche
+                st.session_state.scans_used += 1
+                track("scan", niche=niche)
+                bar.empty()
+            except Exception as e:
+                st.error(f"Erreur pendant l'analyse : {e}")
+    df = st.session_state.results
+    if df is not None:
+        st.subheader(f"Top 5 tendances – {st.session_state.niche}")
+        st.dataframe(df, width="stretch", hide_index=True)
+        for i, row in df.iterrows():
+            with st.expander(f"#{i + 1} · {row['Tendance / Hook']} (score {row['Score viral']})"):
+                st.write(f"**Mots-clés :** {row['Mots-clés']}  \n**Audio :** {row['Audio du moment']}  \n**Difficulté :** {row['Difficulté']}")
+                if st.button("✨ Générer le Script", key=f"gen{i}"):
+                    try:
+                        txt = TrendAPI.script(st.session_state.niche, row["Tendance / Hook"], row["Audio du moment"])
+                        st.session_state.history.insert(0, {"Date": datetime.now().strftime("%d/%m %H:%M"), "Niche": st.session_state.niche,
+                                                            "Hook": row["Tendance / Hook"], "Script": txt})
+                        track("script")
+                        st.code(txt, language=None)
+                        st.download_button("⬇️ Télécharger (.txt)", txt, f"script_{i + 1}.txt", key=f"dl{i}")
+                        copy_button(txt, i)
+                    except Exception as e:
+                        st.error(f"Génération impossible : {e}")
+
+def page_studio():
+    st.title("🧪 Studio IA")
+    st.caption("Hooks, hashtags, calendrier et score viral : toute la boîte à outils du créateur.")
+    t1, t2, t3, t4 = st.tabs(["🪝 Hooks", "#️⃣ Hashtags", "🗓️ Calendrier", "🔥 Score viral"])
+    with t1:
+        a, b = st.columns(2)
+        niche = a.selectbox("Niche", list(NICHES.keys()), key="h_n")
+        tone = b.selectbox("Ton", list(TONES.keys()), key="h_t")
+        limit = 96 if has("hooks") else (30 if st.session_state.plan != "Free Trial" else 5)
+        if st.button("✨ Générer les hooks", type="primary", key="cta_hooks"):
+            try:
+                hooks = TrendAPI.hooks(niche, tone)[:limit]
+                txt = "\n".join(f"{i + 1}. {h}" for i, h in enumerate(hooks))
+                track("hooks", n=len(hooks))
+                st.code(txt, language=None)
+                st.download_button("⬇️ Télécharger (.txt)", txt, "hooks.txt", key="dl_hooks")
+                copy_button(txt, "hk")
+                if limit < 96:
+                    st.info(f"Tu vois {limit} hooks. Le 🪝 Pack Hooks débloque les 96.")
+            except Exception as e:
+                st.error(f"Erreur : {e}")
+    with t2:
+        niche = st.selectbox("Niche", list(NICHES.keys()), key="t_n")
+        kw = NICHES[niche][1]
+        txt = (f"🔥 Macro (reach) : #fyp #viral #pourtoi\n🎯 Niche ({niche}) : {' '.join(kw[:3])}\n"
+               f"🧲 Micro (communauté) : {' '.join(kw[3:])}\n\n💡 Astuce : 1 macro + 2 niche + 2 micro, pas plus de 5 hashtags.")
+        st.code(txt, language=None); copy_button(txt, "ht")
+    with t3:
+        days = 30 if (has("calendrier") or st.session_state.plan == "Agency Elite") else 7
+        niche = st.selectbox("Niche", list(NICHES.keys()), key="c_n")
+        pool = TrendAPI.hooks(niche, "Curieux")
+        fmts, hrs, plats = ["Talking head", "Tuto 3 étapes", "Storytime", "Avant/Après", "Trend audio"], ["18:30", "12:15", "20:00", "07:45"], ["TikTok", "Reels", "Shorts"]
+        cal = pd.DataFrame([{"Jour": (datetime.now() + timedelta(days=i)).strftime("%a %d/%m"), "Heure": hrs[i % 4], "Plateforme": plats[i % 3],
+                             "Format": fmts[i % 5], "Hook": pool[i]} for i in range(days)])
+        st.dataframe(cal, width="stretch", hide_index=True)
+        if days == 30:
+            st.download_button("⬇️ Exporter en CSV", cal.to_csv(index=False).encode("utf-8"), "calendrier.csv", "text/csv")
+        else:
+            st.info("Calendrier limité à 7 jours. Débloque 30 jours + export CSV avec le 🗓️ Pack Calendrier ou Agency Elite.")
+    with t4:
+        txt = st.text_area("Colle ton hook", placeholder="Ex : 3 erreurs que tu fais avec l'IA")
+        if st.button("Analyser mon hook", key="an_hook"):
+            if not txt.strip():
+                st.warning("Écris d'abord un hook.")
+            else:
+                s, tips = TrendAPI.score(txt)
+                st.progress(s / 100, text=f"Score viral : {s}/100")
+                for ok, m in tips:
+                    st.write(("✅ " if ok else "💡 ") + m)
+
+def page_pricing():
+    st.title("💰 Packs & Tarifs")
+    st.markdown("Investis dans ta croissance. **Garantie 14 jours** : premier paiement remboursable sur demande (voir CGV).")
+    yearly = st.toggle("Facturation annuelle (−20 %)", value=False)
+    st.caption(f"Statut actuel : **{st.session_state.plan}**"
+               + (f" · {trial_left()} jour(s) d'essai" if st.session_state.plan == "Free Trial" else ""))
+    cols = st.columns(3)
+    for col, (name, p) in zip(cols, PLANS.items()):
+        with col:
+            price = p["price"] * (0.8 if yearly else 1)
+            ribbon = '<div class="ribbon">⭐ Le plus populaire</div>' if name == "Creator Pro" else ""
+            feats = "".join(f"<li>{html.escape(f)}</li>" for f in p["feats"])
+            cur = " <span class='badge'>Actuel</span>" if st.session_state.plan == name else ""
+            st.markdown(f'<div class="glass" style="box-shadow:0 0 32px {p["color"]}55">{ribbon}<h3 style="color:{p["color"]}!important">{name}{cur}</h3>'
+                        f'<div class="kpi-d">{p["tag"]}</div><div class="price" style="color:{p["color"]}">{fmt_eur(price)}'
+                        f'<span class="kpi-d"> {p["per"]}</span></div><ul class="f">{feats}</ul></div>', unsafe_allow_html=True)
+            st.button(f"Choisir {name}", key=f"plan_{name}", on_click=choose_plan, args=(name,),
+                      disabled=st.session_state.plan == name, type="primary" if name == "Creator Pro" else "secondary")
+    st.header("Packs ponctuels, sans abonnement")
+    pc = st.columns(4)
+    for col, (k, (nm, pr, ds, gl)) in zip(pc, PACKS.items()):
+        with col:
+            own = has(k)
+            st.markdown(f'<div class="glass" style="box-shadow:0 0 26px {gl}55"><h3>{nm}</h3><div class="price" style="color:{gl}">{pr}€</div>'
+                        f'<p class="kpi-d">{ds}</p></div>', unsafe_allow_html=True)
+            st.button("✅ Possédé" if own else f"Acheter · {pr}€", key=f"pk_{k}", on_click=buy, args=(k,), disabled=own)
+    st.header("Comparatif")
+    st.markdown("""
+| Fonctionnalité | Free Trial | Creator Pro | Agency Elite |
+|---|---|---|---|
+| Scans | 3 | Illimités | Illimités |
+| Hooks par génération | 5 | 30 | 30 (96 avec pack) |
+| Calendrier | 7 jours | 7 jours | 30 jours + CSV |
+| Score viral & hashtags | ✔ | ✔ | ✔ |
+| Multi-comptes | — | — | ✔ |
+| Support | Communauté | 24/7 | 24/7 prioritaire |
+""")
+    st.caption("Paiement simulé : aucune carte n'est demandée dans cette démo.")
+
+def page_404():
+    st.markdown('<div class="e404">404</div>', unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center'>Cette page a disparu dans le néon.</h3>", unsafe_allow_html=True)
+    if st.button("Retour à l'accueil", key="back"):
+        st.query_params.clear(); st.rerun()
+
+def main():
+    init_state()
+    qp = st.query_params.get("page")
+    if qp and qp not in ROUTES:
+        page_404(); return
+    if qp and st.session_state.get("_qp") != qp:
+        st.session_state["_qp"] = qp
+        st.session_state.nav = PAGES[ROUTES[qp]]
+    with st.sidebar:
+        st.markdown('<div class="logo">⚡ VIRAL PULSE AI</div>', unsafe_allow_html=True)
+        st.caption("Trends & scripts viraux")
+        st.radio("Navigation", PAGES, key="nav", label_visibility="collapsed")
+        left = scans_left()
+        packs = ", ".join(PACKS[p][0] for p in st.session_state.packs) or "aucun"
+        st.markdown(f'<div class="glass"><span class="kpi-l">Compte</span><br><b>{st.session_state.plan}</b><br>'
+                    f'<span class="kpi-d">Scans : {"∞" if left is None else left}<br>Packs : {html.escape(packs)}</span></div>', unsafe_allow_html=True)
+    pages = [page_home, page_dashboard, page_scanner, page_studio, page_pricing, page_legal]
+    try:
+        pages[PAGES.index(st.session_state.nav)]()
+    except Exception as e:
+        st.error(f"Une erreur est survenue : {e}")
+    footer()
+    cookie_banner()
+
+main()
